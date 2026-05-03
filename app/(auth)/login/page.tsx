@@ -115,11 +115,8 @@ export default function LoginPage() {
         >
           {demoLoading ? 'Signing in…' : 'Try Demo Account'}
         </button>
-        <p className="text-center text-xs text-[#94a3b8] mt-2">
-          Add a confirmed demo user in Supabase, then set{' '}
-          <code className="text-[#64748b]">DEMO_USER_EMAIL</code> and{' '}
-          <code className="text-[#64748b]">DEMO_USER_PASSWORD</code> in{' '}
-          <code className="text-[#64748b]">.env.local</code>.
+        <p className="text-center text-xs text-[#94a3b8] mt-2 max-w-sm mx-auto">
+          Please use responsibly. Functions as one shared demo account for demonstration purposes only.
         </p>
 
         <p className="text-center text-sm text-[#64748b] dark:text-[#94a3b8] mt-6">

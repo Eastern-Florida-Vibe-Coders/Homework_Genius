@@ -138,6 +138,9 @@ export default function SignupPage() {
         >
           {demoLoading ? 'Signing in…' : 'Try Demo Account'}
         </button>
+        <p className="text-center text-xs text-[#94a3b8] mt-2 max-w-sm mx-auto">
+          Please use responsibly. Functions as one shared demo account for demonstration purposes only.
+        </p>
 
         <p className="text-center text-sm text-[#64748b] dark:text-[#94a3b8] mt-6">
           Already have an account?{' '}
