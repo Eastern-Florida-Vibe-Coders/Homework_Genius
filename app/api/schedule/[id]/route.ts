@@ -52,7 +52,7 @@ export async function PATCH(
     })
   }
 
-  if (parsed.data.status === 'skipped' || parsed.data.status === 'missed') {
+  if (parsed.data.status === 'missed') {
     await supabase.from('user_trust_logs').insert({
       user_id: user.id,
       study_block_id: id,

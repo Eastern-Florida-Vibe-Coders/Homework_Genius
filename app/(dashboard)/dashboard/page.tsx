@@ -1,18 +1,17 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { DashboardHome } from '@/components/dashboard/dashboard-home'
-
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+
   if (!user) redirect('/login')
 
-  // Check if onboarding is complete
   const { data: profile } = await supabase
     .from('profiles')
-    .select('onboarding_complete, full_name')
+    .select('*')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   if (!profile?.onboarding_complete) {
     redirect('/onboarding')
@@ -36,16 +35,14 @@ export default async function DashboardPage() {
     console.error('dashboard study_blocks:', studyBlocksError.message)
   }
 
-  // Use DB rows only: on success `rawStudyBlocks` is [] or rows; on error, show empty (no fabricated items)
-  const studyBlocks =
-    studyBlocksError || !Array.isArray(rawStudyBlocks)
-      ? []
-      : rawStudyBlocks.filter(
-          (b) =>
-            b.tasks &&
-            (b.tasks.status === 'pending' || b.tasks.status === 'in_progress')
-        )
-
+  const studyBlocks = Array.isArray(rawStudyBlocks)
+  ? (rawStudyBlocks as any[]).filter(
+      (b) =>
+        b.tasks &&
+        (b.tasks.status === 'pending' || b.tasks.status === 'in_progress')
+    )
+  : []
+  
   const { data: upcomingTasksRaw, error: tasksError } = await supabase
     .from('tasks')
     .select('*')
@@ -63,7 +60,7 @@ export default async function DashboardPage() {
 
   return (
     <DashboardHome
-      userName={profile?.full_name ?? 'Student'}
+      userName={profile.full_name ?? 'Student'}
       studyBlocks={studyBlocks}
       upcomingTasks={upcomingTasks}
     />

@@ -44,12 +44,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const { data, error } = await supabase
-    .from('events')
-    .insert({ ...parsed.data, user_id: user.id })
-    .select()
-    .single()
-
+  const { data, error } = await (supabase as any)
+  .from('events')
+  .insert({ ...parsed.data, user_id: user.id })
+  .select()
+  .single()
+  
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ event: data }, { status: 201 })
 }

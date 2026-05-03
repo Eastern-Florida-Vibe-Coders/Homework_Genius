@@ -24,19 +24,33 @@ export default function OnboardingPage() {
 
   const handleFinish = async () => {
     setSaving(true)
+
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
       if (!user) throw new Error('No user')
 
-      await supabase.from('preferences').upsert({
+      const preferencePayload = {
         user_id: user.id,
-        ...prefs,
-        max_continuous_study_minutes: parseInt(prefs.max_continuous_study_minutes),
-        break_interval_minutes: parseInt(prefs.break_interval_minutes),
-      })
+        preferred_study_hours_start: prefs.preferred_study_hours_start,
+        preferred_study_hours_end: prefs.preferred_study_hours_end,
+        max_continuous_study_minutes: parseInt(
+          prefs.max_continuous_study_minutes,
+          10
+        ),
+        break_interval_minutes: parseInt(prefs.break_interval_minutes, 10),
+        pomodoro_enabled: prefs.pomodoro_enabled,
+      }
 
-      await supabase.from('profiles').update({ onboarding_complete: true }).eq('id', user.id)
+      await supabase.from('preferences').upsert(preferencePayload as any)
+      
+      await (supabase as any)
+      .from('profiles')
+      .update({ onboarding_complete: true })
+      .eq('id', user.id)
 
       toast.success("You're all set! Let's build your first schedule.")
       router.push('/dashboard')
@@ -54,14 +68,21 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] dark:bg-[#0f172a] px-6 py-12">
       <div className="w-full max-w-lg">
-        {/* Step indicator */}
         <div className="flex items-center gap-2 mb-8">
           {steps.map((s, i) => (
             <div key={s} className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full transition-colors ${
-                s === step ? 'bg-indigo-600' : steps.indexOf(step) > i ? 'bg-emerald-500' : 'bg-[#e2e8f0]'
-              }`} />
-              {i < steps.length - 1 && <div className="w-8 h-px bg-[#e2e8f0] dark:bg-[#334155]" />}
+              <div
+                className={`w-2 h-2 rounded-full transition-colors ${
+                  s === step
+                    ? 'bg-indigo-600'
+                    : steps.indexOf(step) > i
+                      ? 'bg-emerald-500'
+                      : 'bg-[#e2e8f0]'
+                }`}
+              />
+              {i < steps.length - 1 && (
+                <div className="w-8 h-px bg-[#e2e8f0] dark:bg-[#334155]" />
+              )}
             </div>
           ))}
         </div>
@@ -75,9 +96,11 @@ export default function OnboardingPage() {
               Welcome to Homework Genius
             </h1>
             <p className="text-[#64748b] dark:text-[#94a3b8] mb-8 leading-relaxed">
-              We&apos;re going to build a schedule that you can actually trust. No more guilt about
-              relaxing — when it&apos;s study time, you&apos;ll know it. When it&apos;s free time, enjoy it fully.
+              We&apos;re going to build a schedule that you can actually trust.
+              No more guilt about relaxing — when it&apos;s study time,
+              you&apos;ll know it. When it&apos;s free time, enjoy it fully.
             </p>
+
             <div className="grid grid-cols-3 gap-4 mb-10">
               {[
                 { icon: Clock, label: 'Smart Scheduling' },
@@ -89,10 +112,13 @@ export default function OnboardingPage() {
                   className="bg-white dark:bg-[#1e293b] border border-[#e2e8f0] dark:border-[#334155] rounded-xl p-4 flex flex-col items-center gap-2"
                 >
                   <Icon className="w-6 h-6 text-indigo-600" />
-                  <span className="text-xs font-medium text-[#64748b]">{label}</span>
+                  <span className="text-xs font-medium text-[#64748b]">
+                    {label}
+                  </span>
                 </div>
               ))}
             </div>
+
             <button
               onClick={() => setStep('preferences')}
               className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-8 py-3 rounded-full transition-colors"
@@ -108,29 +134,47 @@ export default function OnboardingPage() {
               When do you study best?
             </h2>
             <p className="text-[#64748b] dark:text-[#94a3b8] mb-6">
-              We&apos;ll only schedule study blocks within your preferred window.
+              We&apos;ll only schedule study blocks within your preferred
+              window.
             </p>
+
             <div className="space-y-4 bg-white dark:bg-[#1e293b] border border-[#e2e8f0] dark:border-[#334155] rounded-2xl p-5">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-[#64748b] mb-1">Earliest study time</label>
+                  <label className="block text-xs font-medium text-[#64748b] mb-1">
+                    Earliest study time
+                  </label>
                   <input
                     type="time"
                     className={inputClass}
                     value={prefs.preferred_study_hours_start}
-                    onChange={(e) => setPrefs({ ...prefs, preferred_study_hours_start: e.target.value })}
+                    onChange={(e) =>
+                      setPrefs({
+                        ...prefs,
+                        preferred_study_hours_start: e.target.value,
+                      })
+                    }
                   />
                 </div>
+
                 <div>
-                  <label className="block text-xs font-medium text-[#64748b] mb-1">Latest study time</label>
+                  <label className="block text-xs font-medium text-[#64748b] mb-1">
+                    Latest study time
+                  </label>
                   <input
                     type="time"
                     className={inputClass}
                     value={prefs.preferred_study_hours_end}
-                    onChange={(e) => setPrefs({ ...prefs, preferred_study_hours_end: e.target.value })}
+                    onChange={(e) =>
+                      setPrefs({
+                        ...prefs,
+                        preferred_study_hours_end: e.target.value,
+                      })
+                    }
                   />
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-[#64748b] mb-1">
@@ -139,7 +183,12 @@ export default function OnboardingPage() {
                   <select
                     className={inputClass}
                     value={prefs.max_continuous_study_minutes}
-                    onChange={(e) => setPrefs({ ...prefs, max_continuous_study_minutes: e.target.value })}
+                    onChange={(e) =>
+                      setPrefs({
+                        ...prefs,
+                        max_continuous_study_minutes: e.target.value,
+                      })
+                    }
                   >
                     <option value="25">25 min (Pomodoro)</option>
                     <option value="45">45 min</option>
@@ -148,12 +197,20 @@ export default function OnboardingPage() {
                     <option value="120">2 hours</option>
                   </select>
                 </div>
+
                 <div>
-                  <label className="block text-xs font-medium text-[#64748b] mb-1">Break length (min)</label>
+                  <label className="block text-xs font-medium text-[#64748b] mb-1">
+                    Break length (min)
+                  </label>
                   <select
                     className={inputClass}
                     value={prefs.break_interval_minutes}
-                    onChange={(e) => setPrefs({ ...prefs, break_interval_minutes: e.target.value })}
+                    onChange={(e) =>
+                      setPrefs({
+                        ...prefs,
+                        break_interval_minutes: e.target.value,
+                      })
+                    }
                   >
                     <option value="5">5 min</option>
                     <option value="10">10 min</option>
@@ -163,6 +220,7 @@ export default function OnboardingPage() {
                 </div>
               </div>
             </div>
+
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setStep('welcome')}
@@ -190,21 +248,26 @@ export default function OnboardingPage() {
             </h2>
             <p className="text-[#64748b] dark:text-[#94a3b8] mb-4 leading-relaxed">
               Head to the dashboard to add your tasks and commitments, then hit{' '}
-              <strong>Generate Schedule</strong> to let Homework Genius do its thing.
+              <strong>Generate Schedule</strong> to let Homework Genius do its
+              thing.
             </p>
+
             <div className="bg-indigo-50 dark:bg-indigo-950 rounded-xl p-4 text-sm text-indigo-700 dark:text-indigo-300 text-left mb-8">
               <p className="font-semibold mb-1">💡 Pro tip</p>
               <p>
-                Add your weekly class schedule and work shifts first — those are your fixed blocks.
-                Then add assignments with estimated hours and deadlines. We&apos;ll handle the rest.
+                Add your weekly class schedule and work shifts first — those are
+                your fixed blocks. Then add assignments with estimated hours and
+                deadlines. We&apos;ll handle the rest.
               </p>
             </div>
+
             <button
               onClick={handleFinish}
               disabled={saving}
               className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-8 py-3 rounded-full transition-colors disabled:opacity-50"
             >
-              {saving ? 'Setting up...' : 'Go to Dashboard'} <ChevronRight className="w-4 h-4" />
+              {saving ? 'Setting up...' : 'Go to Dashboard'}{' '}
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         )}

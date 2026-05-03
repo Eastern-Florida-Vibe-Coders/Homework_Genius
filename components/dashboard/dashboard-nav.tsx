@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import type { Route } from 'next'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -14,7 +15,7 @@ import {
 } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 
-const navItems = [
+const navItems: { href: Route; label: string; icon: typeof LayoutDashboard }[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/tasks', label: 'Tasks', icon: CheckSquare },
   { href: '/schedule', label: 'Schedule', icon: Calendar },
