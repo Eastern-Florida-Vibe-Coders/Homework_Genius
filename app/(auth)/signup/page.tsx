@@ -17,14 +17,16 @@ export default function SignupPage() {
   const handleDemoLogin = async () => {
     setDemoLoading(true)
     try {
-      const res = await fetch('/api/auth/demo', { method: 'POST' })
-      const data = (await res.json()) as { ok?: boolean; error?: string }
-      if (!res.ok) {
-        toast.error(data.error ?? 'Demo sign-in failed')
+      const res = await fetch('/api/auth/demo-login', {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
+      if (res.ok) {
+        window.location.href = '/dashboard'
         return
       }
-      router.push('/dashboard')
-      router.refresh()
+      const data = (await res.json()) as { error?: string }
+      toast.error(data.error ?? 'Demo login failed')
     } finally {
       setDemoLoading(false)
     }
@@ -134,7 +136,7 @@ export default function SignupPage() {
           disabled={loading || demoLoading}
           className="w-full border border-[#e2e8f0] dark:border-[#334155] bg-white dark:bg-[#1e293b] text-[#334155] dark:text-[#e2e8f0] font-medium py-3 rounded-full transition-colors hover:bg-[#f1f5f9] dark:hover:bg-[#334155] disabled:opacity-60"
         >
-          {demoLoading ? 'Opening demo…' : 'Try demo account (no email)'}
+          {demoLoading ? 'Signing in…' : 'Try Demo Account'}
         </button>
 
         <p className="text-center text-sm text-[#64748b] dark:text-[#94a3b8] mt-6">
