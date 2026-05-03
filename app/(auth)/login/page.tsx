@@ -115,7 +115,8 @@ export default function LoginPage() {
         >
           {demoLoading ? 'Signing in…' : 'Try Demo Account'}
         </button>
-        <p className="text-center text-xs text-[#94a3b8] mt-2 max-w-sm mx-auto">
+        {/* Shared demo account — not per-user; see .env.example for server-side demo credentials */}
+        <p className="text-center text-xs text-[#94a3b8] mt-2 max-w-sm mx-auto leading-relaxed">
           Please use responsibly. Functions as one shared demo account for demonstration purposes only.
         </p>
 
