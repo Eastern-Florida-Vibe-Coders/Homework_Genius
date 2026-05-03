@@ -9,7 +9,10 @@ import { cn } from '@/lib/utils'
 import type { Database } from '@/types/database'
 
 type StudyBlock = Database['public']['Tables']['study_blocks']['Row'] & {
-  tasks: Pick<Database['public']['Tables']['tasks']['Row'], 'id' | 'title' | 'subject' | 'priority_level' | 'estimated_hours'> | null
+  tasks: Pick<
+    Database['public']['Tables']['tasks']['Row'],
+    'id' | 'title' | 'subject' | 'priority_level' | 'estimated_hours' | 'status'
+  > | null
 }
 type Task = Database['public']['Tables']['tasks']['Row']
 
@@ -44,9 +47,23 @@ export function DashboardHome({ userName, studyBlocks, upcomingTasks }: Props) {
   const handleRegenerate = async () => {
     setRegenerating(true)
     try {
-      const res = await fetch('/api/schedule', { method: 'POST' })
-      if (!res.ok) throw new Error('Failed to regenerate')
-      toast.success('Schedule regenerated!')
+      const res = await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = (await res.json()) as {
+        error?: string
+        reason?: string
+      }
+      if (!res.ok) throw new Error(data.error ?? 'Failed to regenerate')
+      if (data.reason === 'no_tasks') {
+        toast.info(
+          'Add at least one open task (with study time left) before generating study blocks.'
+        )
+      } else {
+        toast.success('Schedule regenerated!')
+      }
       router.refresh()
     } catch {
       toast.error('Could not regenerate schedule')
@@ -108,9 +125,9 @@ export function DashboardHome({ userName, studyBlocks, upcomingTasks }: Props) {
           <div className="absolute inset-0 opacity-10 bg-[radial-gradient(ellipse_at_top_right,_white,_transparent)]" />
           <div className="relative">
             <p className="text-indigo-200 text-sm font-medium mb-1">Up next</p>
-            <h2 className="text-white text-xl font-bold mb-1">
-              {nextBlock.tasks?.title ?? 'Study Session'}
-            </h2>
+            {nextBlock.tasks?.title ? (
+              <h2 className="text-white text-xl font-bold mb-1">{nextBlock.tasks.title}</h2>
+            ) : null}
             <p className="text-indigo-200 text-sm mb-4">
               {format(new Date(nextBlock.start_time), 'h:mm a')} –{' '}
               {format(new Date(nextBlock.end_time), 'h:mm a')}
@@ -148,16 +165,32 @@ export function DashboardHome({ userName, studyBlocks, upcomingTasks }: Props) {
       </div>
 
       {/* Upcoming tasks */}
-      {upcomingTasks.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-[#64748b] dark:text-[#94a3b8] uppercase tracking-wide">
-              Upcoming Tasks
-            </h2>
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-[#64748b] dark:text-[#94a3b8] uppercase tracking-wide">
+            Upcoming Tasks
+          </h2>
+          {upcomingTasks.length > 0 && (
             <a href="/tasks" className="text-sm text-indigo-600 hover:underline font-medium">
               View all
             </a>
+          )}
+        </div>
+        {upcomingTasks.length === 0 ? (
+          <div className="text-center bg-white dark:bg-[#1e293b] border border-dashed border-[#e2e8f0] dark:border-[#334155] rounded-2xl py-8 px-6">
+            <BookOpen className="w-8 h-8 text-[#cbd5e1] dark:text-[#475569] mx-auto mb-2" />
+            <p className="text-sm font-medium text-[#1e293b] dark:text-[#f1f5f9] mb-1">No tasks yet</p>
+            <p className="text-xs text-[#94a3b8] mb-4">
+              Add homework on the Tasks page. Nothing here is filled in automatically.
+            </p>
+            <a
+              href="/tasks"
+              className="inline-flex text-sm font-semibold text-indigo-600 hover:underline"
+            >
+              Go to Tasks
+            </a>
           </div>
+        ) : (
           <div className="space-y-2">
             {upcomingTasks.map((task) => (
               <div
@@ -180,8 +213,8 @@ export function DashboardHome({ userName, studyBlocks, upcomingTasks }: Props) {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
@@ -215,7 +248,7 @@ function BlockCard({ block, onFocus }: { block: StudyBlock; onFocus: () => void 
       />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-[#1e293b] dark:text-[#f1f5f9] truncate">
-          {block.tasks?.title ?? 'Study Session'}
+          {block.tasks?.title ?? ''}
         </p>
         {block.tasks?.subject && (
           <p className="text-xs text-[#94a3b8]">{block.tasks.subject}</p>
@@ -233,8 +266,11 @@ function EmptyState({ onGenerate, generating }: { onGenerate: () => void; genera
   return (
     <div className="text-center bg-white dark:bg-[#1e293b] border border-dashed border-[#e2e8f0] dark:border-[#334155] rounded-2xl py-12 px-6">
       <Clock className="w-10 h-10 text-[#e2e8f0] dark:text-[#334155] mx-auto mb-3" />
-      <p className="text-[#1e293b] dark:text-[#f1f5f9] font-medium mb-1">No blocks scheduled yet</p>
-      <p className="text-sm text-[#94a3b8] mb-4">Add some tasks and generate your schedule</p>
+      <p className="text-[#1e293b] dark:text-[#f1f5f9] font-medium mb-1">No study schedule yet</p>
+      <p className="text-sm text-[#94a3b8] mb-4">
+        Study blocks only appear after you add tasks and run Generate Schedule. This app does not insert
+        sample events or homework for you.
+      </p>
       <button
         onClick={onGenerate}
         disabled={generating}
@@ -272,7 +308,9 @@ function FocusMode({ block, onExit, onRefresh }: { block: StudyBlock; onExit: ()
   return (
     <div className="fixed inset-0 z-50 bg-[#0f172a] flex flex-col items-center justify-center text-white px-6">
       <p className="text-indigo-400 text-sm font-medium mb-2 uppercase tracking-widest">Focus Mode</p>
-      <h1 className="text-3xl font-bold text-center mb-2">{block.tasks?.title ?? 'Study Session'}</h1>
+      {block.tasks?.title ? (
+        <h1 className="text-3xl font-bold text-center mb-2">{block.tasks.title}</h1>
+      ) : null}
       {block.tasks?.subject && (
         <p className="text-slate-400 mb-8">{block.tasks.subject}</p>
       )}

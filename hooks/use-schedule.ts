@@ -6,8 +6,8 @@ type StudyBlock = Database['public']['Tables']['study_blocks']['Row']
 async function fetchSchedule() {
   const res = await fetch('/api/schedule')
   if (!res.ok) throw new Error('Failed to fetch schedule')
-  const { blocks } = await res.json()
-  return blocks as StudyBlock[]
+  const json = (await res.json()) as { blocks?: unknown }
+  return Array.isArray(json.blocks) ? (json.blocks as StudyBlock[]) : []
 }
 
 export function useSchedule() {

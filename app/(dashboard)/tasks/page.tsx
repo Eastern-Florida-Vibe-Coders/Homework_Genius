@@ -9,11 +9,17 @@ export default async function TasksPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: tasks } = await supabase
+  const { data: tasks, error: tasksError } = await supabase
     .from('tasks')
     .select('*')
     .eq('user_id', user.id)
     .order('deadline', { ascending: true })
 
-  return <TasksView initialTasks={tasks ?? []} />
+  if (tasksError) {
+    console.error('tasks page:', tasksError.message)
+  }
+
+  const initialTasks = tasksError || !Array.isArray(tasks) ? [] : tasks
+
+  return <TasksView initialTasks={initialTasks} />
 }

@@ -3,7 +3,6 @@ import type { Database } from '@/types/database'
 
 type Event = Database['public']['Tables']['events']['Row']
 type Task = Database['public']['Tables']['tasks']['Row']
-type StudyBlock = Database['public']['Tables']['study_blocks']['Row']
 type Preferences = Database['public']['Tables']['preferences']['Row']
 
 export interface TimeSlot {
@@ -19,62 +18,68 @@ export interface ScheduledBlock {
   intensityScore: number
 }
 
+/** How many days ahead to place study blocks when generating a schedule */
+export const SCHEDULE_HORIZON_DAYS = 21
+
 /**
- * Finds all free time windows in the day not occupied by fixed events.
+ * Finds free time inside the preferred study window, not blocked by events.
+ * Events are clipped to the calendar day so multi-day commitments behave correctly.
  */
 export function findAvailableSlots(
   events: Event[],
   date: DateTime,
   preferences: Preferences
 ): TimeSlot[] {
-  const dayStart = DateTime.fromFormat(
+  const zone = date.zoneName ?? 'local'
+
+  const studyStart = DateTime.fromFormat(
     preferences.preferred_study_hours_start,
     'HH:mm',
-    { zone: date.zoneName ?? 'local' }
+    { zone }
   ).set({ year: date.year, month: date.month, day: date.day })
 
-  const dayEnd = DateTime.fromFormat(
+  const studyEnd = DateTime.fromFormat(
     preferences.preferred_study_hours_end,
     'HH:mm',
-    { zone: date.zoneName ?? 'local' }
+    { zone }
   ).set({ year: date.year, month: date.month, day: date.day })
 
-  // Sort events by start time
-  const dayEvents = events
-    .filter((e) => {
-      const start = DateTime.fromISO(e.start_time)
-      return start.hasSame(date, 'day')
+  const calStart = date.startOf('day')
+  const calEnd = date.endOf('day')
+
+  const clipped = events
+    .map((e) => {
+      const es = DateTime.fromISO(e.start_time)
+      const ee = DateTime.fromISO(e.end_time)
+      const clipStart = es > calStart ? es : calStart
+      const clipEnd = ee < calEnd ? ee : calEnd
+      if (clipStart >= clipEnd) return null
+      return { clipStart, clipEnd }
     })
+    .filter((x): x is { clipStart: DateTime; clipEnd: DateTime } => x !== null)
     .sort(
-      (a, b) =>
-        DateTime.fromISO(a.start_time).toMillis() -
-        DateTime.fromISO(b.start_time).toMillis()
+      (a, b) => a.clipStart.toMillis() - b.clipStart.toMillis()
     )
 
   const slots: TimeSlot[] = []
-  let cursor = dayStart
+  let cursor = studyStart
 
-  for (const event of dayEvents) {
-    const eventStart = DateTime.fromISO(event.start_time)
-    const eventEnd = DateTime.fromISO(event.end_time)
-
-    if (cursor < eventStart) {
-      const gap = Interval.fromDateTimes(cursor, eventStart)
+  for (const { clipStart, clipEnd } of clipped) {
+    if (cursor < clipStart) {
+      const gap = Interval.fromDateTimes(cursor, clipStart)
       const minutes = gap.length('minutes')
       if (minutes >= 30) {
-        slots.push({ start: cursor, end: eventStart, durationMinutes: minutes })
+        slots.push({ start: cursor, end: clipStart, durationMinutes: minutes })
       }
     }
-
-    if (eventEnd > cursor) cursor = eventEnd
+    if (clipEnd > cursor) cursor = clipEnd
   }
 
-  // Check remaining time after last event
-  if (cursor < dayEnd) {
-    const gap = Interval.fromDateTimes(cursor, dayEnd)
+  if (cursor < studyEnd) {
+    const gap = Interval.fromDateTimes(cursor, studyEnd)
     const minutes = gap.length('minutes')
     if (minutes >= 30) {
-      slots.push({ start: cursor, end: dayEnd, durationMinutes: minutes })
+      slots.push({ start: cursor, end: studyEnd, durationMinutes: minutes })
     }
   }
 
@@ -82,19 +87,23 @@ export function findAvailableSlots(
 }
 
 /**
- * Assigns tasks to available time slots using the Gap-Fill + priority algorithm.
- * Respects max continuous study time and break intervals from preferences.
+ * Assigns tasks to slots. If `sharedRemainingMinutes` is passed, it is mutated across days
+ * so leftover time rolls to later dates.
  */
 export function assignTasksToSlots(
   tasks: Task[],
   slots: TimeSlot[],
-  preferences: Preferences
+  preferences: Preferences,
+  sharedRemainingMinutes?: Map<string, number>
 ): ScheduledBlock[] {
+  if (tasks.length === 0) {
+    return []
+  }
+
   const BUFFER_MINUTES = 15
   const maxContinuous = preferences.max_continuous_study_minutes
   const breakInterval = preferences.break_interval_minutes
 
-  // Sort tasks: higher priority (5) first, then earliest deadline
   const sortedTasks = [...tasks]
     .filter((t) => t.status !== 'completed')
     .sort((a, b) => {
@@ -106,44 +115,72 @@ export function assignTasksToSlots(
       )
     })
 
+  if (sortedTasks.length === 0) {
+    return []
+  }
+
+  const remaining =
+    sharedRemainingMinutes ??
+    new Map(sortedTasks.map((t) => [t.id, t.estimated_hours * 60]))
+
   const blocks: ScheduledBlock[] = []
-  const remainingByTask = new Map(
-    sortedTasks.map((t) => [t.id, t.estimated_hours * 60])
-  )
 
   for (const slot of slots) {
     let slotCursor = slot.start
     let continuousMinutes = 0
 
-    for (const task of sortedTasks) {
-      const remaining = remainingByTask.get(task.id) ?? 0
-      if (remaining <= 0) continue
+    // Repeat passes over tasks by priority until nothing fits in the remainder of this slot.
+    // (Single pass missed scheduling the rest of the same task in one large gap.)
+    while (true) {
+      const slotLeftNow = Interval.fromDateTimes(slotCursor, slot.end).length('minutes')
+      if (slotLeftNow < 25) break
 
-      const slotLeft = Interval.fromDateTimes(slotCursor, slot.end).length('minutes')
-      if (slotLeft < 30) break
+      let placed = false
 
-      // Enforce continuous study cap — insert break
-      if (continuousMinutes >= maxContinuous) {
-        slotCursor = slotCursor.plus({ minutes: breakInterval })
-        continuousMinutes = 0
+      for (const task of sortedTasks) {
+        const rem = remaining.get(task.id) ?? 0
+        if (rem <= 0) continue
+
+        const deadline = DateTime.fromISO(task.deadline)
+        if (slotCursor >= deadline) continue
+
+        const roomUntilDeadline = deadline.diff(slotCursor, 'minutes').minutes
+        if (roomUntilDeadline < 25) continue
+
+        if (continuousMinutes >= maxContinuous) {
+          slotCursor = slotCursor.plus({ minutes: breakInterval })
+          continuousMinutes = 0
+        }
+
+        const slotLeft = Interval.fromDateTimes(slotCursor, slot.end).length('minutes')
+        if (slotLeft < 30) break
+
+        const sessionMinutes = Math.min(
+          rem,
+          maxContinuous - continuousMinutes,
+          slotLeft - BUFFER_MINUTES,
+          roomUntilDeadline
+        )
+        if (sessionMinutes < 25) continue
+
+        const blockEnd = slotCursor.plus({ minutes: sessionMinutes })
+        const intensityScore = calculateIntensity(task, slotCursor)
+
+        blocks.push({
+          task,
+          start: slotCursor,
+          end: blockEnd,
+          intensityScore,
+        })
+
+        remaining.set(task.id, rem - sessionMinutes)
+        slotCursor = blockEnd.plus({ minutes: BUFFER_MINUTES })
+        continuousMinutes += sessionMinutes
+        placed = true
+        break
       }
 
-      const sessionMinutes = Math.min(remaining, maxContinuous - continuousMinutes, slotLeft - BUFFER_MINUTES)
-      if (sessionMinutes < 25) break
-
-      const blockEnd = slotCursor.plus({ minutes: sessionMinutes })
-      const intensityScore = calculateIntensity(task, slotCursor)
-
-      blocks.push({
-        task,
-        start: slotCursor,
-        end: blockEnd,
-        intensityScore,
-      })
-
-      remainingByTask.set(task.id, remaining - sessionMinutes)
-      slotCursor = blockEnd.plus({ minutes: BUFFER_MINUTES })
-      continuousMinutes += sessionMinutes
+      if (!placed) break
     }
   }
 
@@ -151,20 +188,62 @@ export function assignTasksToSlots(
 }
 
 /**
- * Calculates an intensity score for a study block based on task priority
- * and time-of-day energy heuristics.
+ * Fill available study time day by day until each task's estimated minutes are placed or the horizon ends.
  */
+export function scheduleAcrossDays(
+  allEvents: Event[],
+  tasks: Task[],
+  preferences: Preferences,
+  startDate: DateTime,
+  horizonDays: number = SCHEDULE_HORIZON_DAYS
+): ScheduledBlock[] {
+  const schedulable = tasks.filter(
+    (t) => t.status !== 'completed' && Number(t.estimated_hours) > 0
+  )
+  if (schedulable.length === 0) {
+    return []
+  }
+
+  const sortedTasks = [...schedulable].sort((a, b) => {
+    if (b.priority_level !== a.priority_level)
+      return b.priority_level - a.priority_level
+    return (
+      DateTime.fromISO(a.deadline).toMillis() -
+      DateTime.fromISO(b.deadline).toMillis()
+    )
+  })
+
+  const remainingByTask = new Map(
+    sortedTasks.map((t) => [t.id, t.estimated_hours * 60])
+  )
+
+  const allBlocks: ScheduledBlock[] = []
+
+  for (let i = 0; i < horizonDays; i++) {
+    const done = sortedTasks.every((t) => (remainingByTask.get(t.id) ?? 0) <= 0)
+    if (done) break
+
+    const date = startDate.plus({ days: i })
+    const slots = findAvailableSlots(allEvents, date, preferences)
+    const dayBlocks = assignTasksToSlots(
+      sortedTasks,
+      slots,
+      preferences,
+      remainingByTask
+    )
+    allBlocks.push(...dayBlocks)
+  }
+
+  return allBlocks
+}
+
 function calculateIntensity(task: Task, time: DateTime): number {
   const hour = time.hour
-  // Energy peaks: 9–11 AM and 3–5 PM
   const energyScore =
     (hour >= 9 && hour <= 11) || (hour >= 15 && hour <= 17) ? 1.2 : 1.0
   return Math.round((task.priority_level / 5) * energyScore * 100)
 }
 
-/**
- * Converts scheduler output into Supabase-ready StudyBlock inserts.
- */
 export function blocksToInserts(
   blocks: ScheduledBlock[],
   userId: string
