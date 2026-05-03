@@ -12,6 +12,23 @@ export default function SignupPage() {
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
   const [loading, setLoading] = useState(false)
+  const [demoLoading, setDemoLoading] = useState(false)
+
+  const handleDemoLogin = async () => {
+    setDemoLoading(true)
+    try {
+      const res = await fetch('/api/auth/demo', { method: 'POST' })
+      const data = (await res.json()) as { ok?: boolean; error?: string }
+      if (!res.ok) {
+        toast.error(data.error ?? 'Demo sign-in failed')
+        return
+      }
+      router.push('/dashboard')
+      router.refresh()
+    } finally {
+      setDemoLoading(false)
+    }
+  }
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -95,12 +112,30 @@ export default function SignupPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || demoLoading}
             className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold py-3 rounded-full transition-all duration-200"
           >
             {loading ? 'Creating account...' : 'Create account'}
           </button>
         </form>
+
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-[#e2e8f0] dark:border-[#334155]" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase tracking-wide">
+            <span className="bg-[#f8fafc] dark:bg-[#0f172a] px-2 text-[#94a3b8]">or</span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleDemoLogin}
+          disabled={loading || demoLoading}
+          className="w-full border border-[#e2e8f0] dark:border-[#334155] bg-white dark:bg-[#1e293b] text-[#334155] dark:text-[#e2e8f0] font-medium py-3 rounded-full transition-colors hover:bg-[#f1f5f9] dark:hover:bg-[#334155] disabled:opacity-60"
+        >
+          {demoLoading ? 'Opening demo…' : 'Try demo account (no email)'}
+        </button>
 
         <p className="text-center text-sm text-[#64748b] dark:text-[#94a3b8] mt-6">
           Already have an account?{' '}
