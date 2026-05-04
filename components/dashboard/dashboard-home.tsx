@@ -100,25 +100,21 @@ export function DashboardHome({ userName, studyBlocks, upcomingTasks }: Props) {
 
       <div className="rounded-2xl border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/60 dark:bg-indigo-950/25 px-5 py-4">
         <h2 className="text-sm font-semibold text-indigo-900 dark:text-indigo-100 mb-2">
-          How to use this dashboard
+          What this app does
         </h2>
         <div className="text-sm text-[#475569] dark:text-[#94a3b8] leading-relaxed space-y-2">
           <p>
-            Start on the{' '}
-            <a href="/tasks" className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
-              Tasks
-            </a>{' '}
-            page: add each assignment with an estimated duration and a deadline. The app only schedules work you enter—it does not invent homework for you.
+            Homework Genius helps you turn your responsibilities into a realistic, structured schedule. Add anything you need to get done—homework, work, personal tasks—and include how long you think it will take and when it’s due.
           </p>
           <p>
-            When you generate a schedule, Homework Genius drops study blocks into free time around your fixed commitments (from onboarding). Longer work is split into several blocks across multiple days; each chunk fits the gaps in your day until scheduled time matches the hours you estimated for that task.
+            When you generate a schedule, the app automatically breaks your work into manageable chunks and places them into open time throughout your day. It works around your existing commitments and spreads tasks across multiple days when needed.
           </p>
           <p>
-            This dashboard focuses on today so you can work through blocks and mark them complete. Use{' '}
+            This dashboard shows your plan for today so you can stay focused and work through each block. Use{' '}
             <a href="/schedule" className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
               Schedule
             </a>{' '}
-            for the full week, and Regenerate whenever life changes so the planner can reshuffle from your latest tasks and events.
+            to see your full week, and regenerate anytime your plans change to keep everything up to date.
           </p>
         </div>
       </div>
