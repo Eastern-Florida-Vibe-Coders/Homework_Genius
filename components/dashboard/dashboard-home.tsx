@@ -98,6 +98,31 @@ export function DashboardHome({ userName, studyBlocks, upcomingTasks }: Props) {
         </button>
       </div>
 
+      <div className="rounded-2xl border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/60 dark:bg-indigo-950/25 px-5 py-4">
+        <h2 className="text-sm font-semibold text-indigo-900 dark:text-indigo-100 mb-2">
+          How to use this dashboard
+        </h2>
+        <div className="text-sm text-[#475569] dark:text-[#94a3b8] leading-relaxed space-y-2">
+          <p>
+            Start on the{' '}
+            <a href="/tasks" className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+              Tasks
+            </a>{' '}
+            page: add each assignment with an estimated duration and a deadline. The app only schedules work you enter—it does not invent homework for you.
+          </p>
+          <p>
+            When you generate a schedule, Homework Genius drops study blocks into free time around your fixed commitments (from onboarding). Longer work is split into several blocks across multiple days; each chunk fits the gaps in your day until scheduled time matches the hours you estimated for that task.
+          </p>
+          <p>
+            This dashboard focuses on today so you can work through blocks and mark them complete. Use{' '}
+            <a href="/schedule" className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+              Schedule
+            </a>{' '}
+            for the full week, and Regenerate whenever life changes so the planner can reshuffle from your latest tasks and events.
+          </p>
+        </div>
+      </div>
+
       {/* Progress bar */}
       {totalCount > 0 && (
         <div className="bg-white dark:bg-[#1e293b] rounded-2xl border border-[#e2e8f0] dark:border-[#334155] p-5">
